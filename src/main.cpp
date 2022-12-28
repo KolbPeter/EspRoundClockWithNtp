@@ -8,9 +8,6 @@
 #include <Wire.h>
 #include <TimeLib.h>
 
-#include "time.h"
-#include "index.h"
-
 #define BMP_SCK (15)
 #define BMP_MISO (16)
 #define BMP_MOSI (2)
@@ -18,22 +15,18 @@
 
 #define LED_COUNT 60
 #define LED_PIN 22
-#define BASE_YEAR 2000
-String PARAM_INPUT_1 = "hours";
-String PARAM_INPUT_2 = "mins";
-String PARAM_INPUT_3 = "secs";
-String PARAM_INPUT_4 = "light";
-int maxLight = 150;
 
-const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = 3600;
-const int   daylightOffset_sec = 3600;
+String PARAM_INPUT_1 = "light";
+int maxLight = 15;
+RgbColor black(0, 0, 0);
 
-void rootPage();
+const char *ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 3600;
+const int daylightOffset_sec = 3600;
+
 String collect_Info();
 void getStats();
 void getRequestHandler();
-void setLeds();
 void setLeds(int red, int green, int blue);
 void setLocalTime();
 
@@ -44,92 +37,89 @@ WebServer Server;
 AutoConnect Portal(Server);
 Adafruit_BMP280 sensor(BMP_CS, BMP_MOSI, BMP_MISO, BMP_SCK);
 int altitude = 235;
-const float ALTMOD = 11.25; //11,25Pa/méter hozzávetőlegesen 1000 méterig
+const float ALTMOD = 11.25; // 11,25Pa/méter hozzávetőlegesen 1000 méterig
 
-time_t last = second(now());
 NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod> strip(LED_COUNT, LED_PIN);
 RgbColor color(0, 0, 0);
 
-void rootPage()
+/// @brief Creates a string that contains sensor data and current time.
+/// @return String with sensor data and the current time.
+String collect_Info()
 {
-  String s = MAIN_page;
-  Server.send(200, "text/html", s);
-}
+  String retval = (String)sensor.readTemperature() + ";";
+  retval += (String)((sensor.readPressure() + (ALTMOD * (float)altitude)) / 100) + ";";
 
-String collect_Info(){
-  String retval = (String)sensor.readTemperature()+";";
-  retval += (String)((sensor.readPressure() + (ALTMOD * (float)altitude)) / 100)+";";
+  struct tm timeinfo;
+
+  if (!getLocalTime(&timeinfo))
+  {
+    return retval;
+  }
+
+  char timeinfoStringBuff[50]; // 50 chars should be enough
+  strftime(timeinfoStringBuff, sizeof(timeinfoStringBuff), "%Y/%B/%d %H:%M:%S", &timeinfo);
+  retval += timeinfoStringBuff;
+  retval += ";";
+
   return retval;
 }
 
+/// @brief Method to call when the server get a request.
 void getStats()
 {
-  Server.send(200, "text/plane", collect_Info());
+  Server.send(200, "text/plain", collect_Info());
 }
 
+/// @brief Method to handle server requests.
 void getRequestHandler()
 {
-  if (Server.hasArg(PARAM_INPUT_1) == true){
-    setTime(
-      Server.arg(PARAM_INPUT_1).toInt(),
-      minute(now()),
-      second(now()),
-      1,1,1);
-  }
-  if(Server.hasArg(PARAM_INPUT_2) == true){
-    setTime(
-      hour(now()),
-      Server.arg(PARAM_INPUT_2).toInt(),
-      second(now()),
-      1,1,1);
-  }
-  if(Server.hasArg(PARAM_INPUT_3) == true){
-    setTime(
-      hour(now()),
-      minute(now()),
-      Server.arg(PARAM_INPUT_3).toInt(),
-      1,1,1);
-  }
-  if(Server.hasArg(PARAM_INPUT_4) == true){
-    maxLight = Server.arg(PARAM_INPUT_4).toInt();
-  }
-  if(
-    Server.hasArg(PARAM_INPUT_1) == false
-    && Server.hasArg(PARAM_INPUT_2) == false
-    && Server.hasArg(PARAM_INPUT_3) == false
-    && Server.hasArg(PARAM_INPUT_4) == false){
-      Server.send(200, "text/plain", "No data received");
-    return;
+  if (Server.hasArg(PARAM_INPUT_1) == true)
+  {
+    maxLight = Server.arg(PARAM_INPUT_1).toInt();
   }
 
-  setLeds();
-  rootPage();
+  Server.send(200, "text/plain", collect_Info());
+
+  return;
 }
 
-void setLeds(){
-  setLeds(hour(now()),minute(now()),second(now()));
-}
-
-void setLeds(int hour, int min, int sec){
+/// @brief Method to set led strip values then show the led strip.
+/// @param hour The hours to display on the clock.
+/// @param min The minutes to display on the clock.
+/// @param sec The seconds to display on the clock.
+void setLeds(int hour, int min, int sec)
+{
   int roundClockHour = hour;
-  if (roundClockHour >= 12){ roundClockHour = roundClockHour - 12; };
+  if (roundClockHour >= 12)
+  {
+    roundClockHour = roundClockHour - 12;
+  };
   roundClockHour = roundClockHour * 5;
-  roundClockHour = roundClockHour + (minute(now()) / 12);
+  roundClockHour = roundClockHour + (min / 12);
 
-  for (int i=0;i<LED_COUNT;i++){
-    if (i==roundClockHour){ color.R = maxLight; }else{ color.R = 0; };
-    if (i==min){ color.G = maxLight; }else{ color.G = 0; };
-    if (i==sec){ color.B = maxLight; }else{ color.B = 0; };
-    strip.SetPixelColor(i, color);
-  }
+  strip.ClearTo(black);
+
+  RgbColor color = strip.GetPixelColor(roundClockHour);
+  color.R = maxLight;
+  strip.SetPixelColor(roundClockHour, color);
+
+  color = strip.GetPixelColor(min);
+  color.G = maxLight;
+  strip.SetPixelColor(min, color);
+
+  color = strip.GetPixelColor(sec);
+  color.B = maxLight;
+  strip.SetPixelColor(sec, color);
+
   strip.Show();
 }
 
+/// @brief Sets local time from an NTP server.
 void setLocalTime()
 {
   struct tm timeinfo;
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  
+
   while (!getLocalTime(&timeinfo))
   {
     Serial.println("Failed to obtain time. Retrying in 3 seconds.");
@@ -138,10 +128,9 @@ void setLocalTime()
   }
 
   Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
-
-  setTime(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec, timeinfo.tm_mday, timeinfo.tm_mon, timeinfo.tm_year);
 }
 
+/// @brief Setup method.
 void setup()
 {
   Serial.begin(9600);
@@ -163,21 +152,27 @@ void setup()
     (WiFi.SSID()).toCharArray(__SSID, sizeof(__SSID));
     (WiFi.psk()).toCharArray(__PASS, sizeof(__PASS));
   }
-  Server.on("/", rootPage);
+
   Server.on("/getStats", getStats);
-  Server.on("/get", HTTP_GET, getRequestHandler);
+  Server.on("/", HTTP_GET, getRequestHandler);
 
   strip.Begin();
 
-  //init and get the time
+  // init and get the time
   setLocalTime();
 }
 
+/// @brief Loop method.
 void loop()
 {
+  time_t last = second(now());
+  struct tm timeinfo;
   Portal.handleClient();
-  if (second(now())!=last){
-    setLeds(hour(now()),minute(now()),second(now()));
-    last=second(now());
+
+  if (second(now()) != last)
+  {
+    getLocalTime(&timeinfo);
+    setLeds(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+    last = second(now());
   }
 }
