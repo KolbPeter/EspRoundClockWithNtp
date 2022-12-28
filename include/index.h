@@ -92,28 +92,7 @@ const char MAIN_page[] PROGMEM = R"=====(
 <body onload="callEspFunction('getStats')" id="body">
   	<fieldset class="card" style="width: 90%">
 
-  	<legend><h1>Clock set</h1></legend>
-
-		 <form action="/get">
-			Set hours: <input class="card" type="number" id="hours" name="hours" min="0" max="23">
-			<input class="on" type="submit" value="Submit">
-		</form>
-
-		<hr class="rounded">
-
-		 <form action="/get">
-			Set minutes: <input class="card" type="number" id="mins" name="mins" min="0" max="59">
-			<input class="on" type="submit" value="Submit">
-		</form>
-
-		<hr class="rounded">
-
-		 <form action="/get">
-			Set seconds: <input class="card" type="number" id="secs" name="secs" min="0" max="59">
-			<input class="on" type="submit" value="Submit">
-		</form>
-
-		<hr class="rounded">
+  	<legend><h1>Light set</h1></legend>
 
 		 <form action="/get">
 			Set light: <input class="card" type="number" id="light" name="light" min="0" max="255">

@@ -8,6 +8,7 @@
 #include <Wire.h>
 #include <TimeLib.h>
 
+#include "time.h"
 #include "index.h"
 
 #define BMP_SCK (15)
@@ -24,12 +25,17 @@ String PARAM_INPUT_3 = "secs";
 String PARAM_INPUT_4 = "light";
 int maxLight = 150;
 
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = 3600;
+const int   daylightOffset_sec = 3600;
+
 void rootPage();
 String collect_Info();
 void getStats();
 void getRequestHandler();
 void setLeds();
 void setLeds(int red, int green, int blue);
+void setLocalTime();
 
 void setup();
 void loop();
@@ -119,6 +125,23 @@ void setLeds(int hour, int min, int sec){
   strip.Show();
 }
 
+void setLocalTime()
+{
+  struct tm timeinfo;
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  
+  while (!getLocalTime(&timeinfo))
+  {
+    Serial.println("Failed to obtain time. Retrying in 3 seconds.");
+    delay(3000);
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  }
+
+  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+
+  setTime(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec, timeinfo.tm_mday, timeinfo.tm_mon, timeinfo.tm_year);
+}
+
 void setup()
 {
   Serial.begin(9600);
@@ -145,7 +168,9 @@ void setup()
   Server.on("/get", HTTP_GET, getRequestHandler);
 
   strip.Begin();
-  setTime(0,0,0,1,1,1);
+
+  //init and get the time
+  setLocalTime();
 }
 
 void loop()
