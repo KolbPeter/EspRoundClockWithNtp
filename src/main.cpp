@@ -19,6 +19,9 @@
 String PARAM_INPUT_1 = "light";
 int maxLight = 15;
 RgbColor black(0, 0, 0);
+RgbColor zero(1,1,0);
+RgbColor quarters(1,0,1);
+RgbColor smalls(0,1,1);
 
 const char *ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 3600;
@@ -27,7 +30,7 @@ const int daylightOffset_sec = 3600;
 String collect_Info();
 void getStats();
 void getRequestHandler();
-void setLeds(int red, int green, int blue);
+void setLeds(int red, int green, int blue, bool backlight);
 void setLocalTime();
 
 void setup();
@@ -87,7 +90,8 @@ void getRequestHandler()
 /// @param hour The hours to display on the clock.
 /// @param min The minutes to display on the clock.
 /// @param sec The seconds to display on the clock.
-void setLeds(int hour, int min, int sec)
+/// @param backlight Value indicating if backlight is neede for the clock.
+void setLeds(int hour, int min, int sec, bool backlight)
 {
   int roundClockHour = hour;
   if (roundClockHour >= 12)
@@ -98,6 +102,20 @@ void setLeds(int hour, int min, int sec)
   roundClockHour = roundClockHour + (min / 12);
 
   strip.ClearTo(black);
+
+  if(backlight)
+  {
+    strip.SetPixelColor(0, zero);
+    for (int i = 5; i < 60; i+=5)
+    {
+      if(i % 15 == 0)
+      {
+        strip.SetPixelColor(i, quarters);
+      }else{
+        strip.SetPixelColor(i, smalls);
+      }
+    }
+  }
 
   RgbColor color = strip.GetPixelColor(roundClockHour);
   color.R = maxLight;
@@ -169,10 +187,24 @@ void loop()
   struct tm timeinfo;
   Portal.handleClient();
 
-  if (second(now()) != last)
+  int i = 0;
+  do
   {
-    getLocalTime(&timeinfo);
-    setLeds(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
-    last = second(now());
-  }
+    if (second(now()) != last)
+    {
+      getLocalTime(&timeinfo);
+      setLeds(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec, false);
+      last = second(now());
+      i = 0;
+
+      if(timeinfo.tm_hour == 3 && timeinfo.tm_min == 0 && timeinfo.tm_sec == 0 )
+      {
+        setLocalTime();
+      }
+    }
+
+    setLeds(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec, i % 20 == 0);    
+    i++;
+  } while (true);
+  
 }
